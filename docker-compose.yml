@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    image: meds-tracker:latest
+    container_name: meds-tracker
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOST: 0.0.0.0
+      MEDS_DB_PATH: /data/meds.sqlite
+    volumes:
+      - ./data:/data

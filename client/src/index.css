@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background-color: theme('colors.canvas');
+    color: theme('colors.ink');
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+  }
+
+  /* Kill the 300ms delay / double-tap zoom on tappable controls (DESIGN.md). */
+  button,
+  [role='button'],
+  a,
+  label {
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  /* The brief locks the device to landscape. On portrait we show a rotate prompt
+     instead of attempting a portrait layout. */
+  .landscape-only {
+    @apply hidden;
+  }
+  .portrait-only {
+    @apply flex;
+  }
+  @media (orientation: landscape) {
+    .landscape-only {
+      @apply flex;
+    }
+    .portrait-only {
+      @apply hidden;
+    }
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-full bg-primary px-6 py-3
+           text-button-md text-on-primary active:bg-charcoal disabled:opacity-50;
+  }
+}
