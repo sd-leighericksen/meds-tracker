@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, auth, ApiError } from '../api';
-import type { Settings } from '../types';
-import { btn, ErrorBanner, Field, Input, Toggle } from '../ui';
+import type { AiModel, Settings, SettingsPatch } from '../types';
+import { btn, ErrorBanner, Field, Input, Select, Toggle } from '../ui';
 
 export function SettingsPanel({ onPinChanged }: { onPinChanged: () => void }) {
   const [s, setS] = useState<Settings | null>(null);
@@ -12,7 +12,7 @@ export function SettingsPanel({ onPinChanged }: { onPinChanged: () => void }) {
     api.getSettings().then(setS).catch((e: Error) => setError(e.message));
   }, []);
 
-  const save = async (patch: Partial<Settings>) => {
+  const save = async (patch: SettingsPatch) => {
     setError(null);
     try {
       const next = await api.updateSettings(patch);
@@ -38,6 +38,12 @@ export function SettingsPanel({ onPinChanged }: { onPinChanged: () => void }) {
       <WebhookSection
         url={s.webhook_url}
         onChange={(webhook_url) => save({ webhook_url })}
+      />
+      <AiSection
+        enabled={s.ai_enabled}
+        keyHint={s.openrouter_api_key_hint}
+        defaultModel={s.default_ai_model}
+        onSave={(patch) => save(patch)}
       />
       <PinChangeSection onChanged={onPinChanged} />
       <MaintenanceSection />
@@ -183,6 +189,127 @@ function WebhookSection({
       {testStatus && (
         <div className="mt-2 text-caption text-stone">{testStatus}</div>
       )}
+    </section>
+  );
+}
+
+function AiSection({
+  enabled,
+  keyHint,
+  defaultModel,
+  onSave,
+}: {
+  enabled: boolean;
+  keyHint: string | null;
+  defaultModel: string;
+  onSave: (patch: SettingsPatch) => void | Promise<void>;
+}) {
+  const [models, setModels] = useState<AiModel[]>([]);
+  const [keyDraft, setKeyDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api
+      .listAiModels()
+      .then((r) => setModels(r.models))
+      .catch(() => {});
+  }, []);
+
+  const saveKey = async () => {
+    const v = keyDraft.trim();
+    if (!v) return;
+    setBusy(true);
+    try {
+      await onSave({ openrouter_api_key: v });
+      setKeyDraft('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clearKey = async () => {
+    if (!confirm('Remove the saved OpenRouter API key?')) return;
+    setBusy(true);
+    try {
+      await onSave({ openrouter_api_key: null });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="rounded-3xl border border-hairline-soft bg-canvas p-6">
+      <h3 className="text-h4 text-ink">AI medication extraction</h3>
+      <p className="mt-1 text-body-sm text-slate">
+        Photograph the front (and optionally back) of a medication and let an OpenRouter
+        vision model fill in the medication, dose, timing, prescribed-to and so on. You
+        always review the fields before saving.
+      </p>
+
+      <div className="mt-4 flex items-center gap-3">
+        <span
+          className={
+            'inline-flex items-center rounded-full px-3 py-1 text-caption-bold ' +
+            (enabled
+              ? 'bg-success-bg text-success-accent'
+              : 'bg-surface text-stone')
+          }
+        >
+          {enabled ? `Key configured (${keyHint ?? '…'})` : 'No key set'}
+        </span>
+        <a
+          href="https://openrouter.ai/keys"
+          target="_blank"
+          rel="noreferrer"
+          className="text-caption text-brand-blue underline"
+        >
+          Get an OpenRouter key
+        </a>
+      </div>
+
+      <div className="mt-4 flex max-w-2xl items-end gap-2">
+        <Field label={enabled ? 'Replace API key' : 'OpenRouter API key'}>
+          <Input
+            type="password"
+            autoComplete="off"
+            value={keyDraft}
+            placeholder="sk-or-v1-…"
+            onChange={(e) => setKeyDraft(e.target.value)}
+          />
+        </Field>
+        <button
+          className={btn.primary}
+          onClick={saveKey}
+          disabled={busy || !keyDraft.trim()}
+        >
+          Save key
+        </button>
+        {enabled && (
+          <button className={btn.ghost} onClick={clearKey} disabled={busy}>
+            Clear
+          </button>
+        )}
+      </div>
+      <p className="mt-2 text-caption text-stone">
+        Stored in the SQLite settings table. Never returned by the API after saving — only
+        the last 4 characters are echoed back as a hint.
+      </p>
+
+      <div className="mt-4 max-w-md">
+        <Field label="Default model">
+          <Select
+            value={defaultModel}
+            onChange={(e) => onSave({ default_ai_model: e.target.value })}
+            disabled={!enabled || models.length === 0}
+          >
+            {models.map((m) => (
+              <option key={m.slug} value={m.slug}>
+                {m.label} — {m.blurb}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
     </section>
   );
 }

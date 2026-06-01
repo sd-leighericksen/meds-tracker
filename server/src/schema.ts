@@ -182,4 +182,35 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 3,
+    sql: /* sql */ `
+      -- Fields surfaced by AI extraction from medication packaging photos.
+      ALTER TABLE medications ADD COLUMN active_ingredient    TEXT;
+      ALTER TABLE medications ADD COLUMN strength             TEXT;
+      ALTER TABLE medications ADD COLUMN form                 TEXT;
+      ALTER TABLE medications ADD COLUMN quantity_in_pack     TEXT;
+      ALTER TABLE medications ADD COLUMN expiry_date          TEXT;
+      ALTER TABLE medications ADD COLUMN prescription_number  TEXT;
+      ALTER TABLE medications ADD COLUMN prescribed_to_name   TEXT;
+      ALTER TABLE medications ADD COLUMN prescriber           TEXT;
+      ALTER TABLE medications ADD COLUMN instructions_raw     TEXT;
+      ALTER TABLE medications ADD COLUMN photo_box_back       TEXT;
+    `,
+  },
+  {
+    version: 4,
+    sql: /* sql */ `
+      -- Replace free-text Rx fields with a person FK. The AI still extracts the
+      -- patient name internally to drive a fuzzy match against people.name, but
+      -- we only persist the resolved person_id.
+      ALTER TABLE medications DROP COLUMN prescribed_to_name;
+      ALTER TABLE medications DROP COLUMN prescriber;
+      ALTER TABLE medications DROP COLUMN prescription_number;
+      ALTER TABLE medications ADD COLUMN prescribed_to_person_id
+        INTEGER REFERENCES people(id) ON DELETE SET NULL;
+      CREATE INDEX idx_med_prescribed_to
+        ON medications(prescribed_to_person_id);
+    `,
+  },
 ];

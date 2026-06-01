@@ -35,4 +35,14 @@ export const KEYS = {
   parentNames: 'parent_names',
   dispensedByRequired: 'dispensed_by_required',
   webhookUrl: 'webhook_url',
+  defaultAiModel: 'default_ai_model',
+  openrouterApiKey: 'openrouter_api_key',
 } as const;
+
+// Resolved key: DB-stored value takes precedence over OPENROUTER_API_KEY env var.
+export function getOpenrouterKey(): string | null {
+  const fromDb = getSetting(KEYS.openrouterApiKey);
+  if (fromDb && fromDb.length > 0) return fromDb;
+  const fromEnv = process.env.OPENROUTER_API_KEY;
+  return fromEnv && fromEnv.length > 0 ? fromEnv : null;
+}
