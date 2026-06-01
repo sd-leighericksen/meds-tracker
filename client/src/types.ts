@@ -29,11 +29,55 @@ export type Medication = {
   dose: string;
   dose_size: string | null;
   photo_box: string | null;
+  photo_box_back: string | null;
   photo_tablet: string | null;
   food_timing: FoodTiming;
   notes: string | null;
+  active_ingredient: string | null;
+  strength: string | null;
+  form: string | null;
+  quantity_in_pack: string | null;
+  expiry_date: string | null;
+  instructions_raw: string | null;
+  prescribed_to_person_id: number | null;
   created_at: string;
   updated_at: string;
+};
+
+export type AiModel = {
+  slug: string;
+  label: string;
+  blurb: string;
+};
+
+export type AiModelsResponse = {
+  enabled: boolean;
+  default_model: string;
+  models: AiModel[];
+};
+
+export type ExtractedMed = {
+  proper_name: string | null;
+  brand_name: string | null;
+  active_ingredient: string | null;
+  strength: string | null;
+  form: string | null;
+  dose: string | null;
+  dose_size: string | null;
+  food_timing: FoodTiming | null;
+  quantity_in_pack: string | null;
+  expiry_date: string | null;
+  instructions_raw: string | null;
+  suggested_routine_hint: string | null;
+  notes: string | null;
+};
+
+export type ExtractResponse = {
+  model: string;
+  extracted: ExtractedMed;
+  suggested_person_id: number | null;
+  suggested_routine_id: number | null;
+  raw: string;
 };
 
 export type ScheduledAssignment = {
@@ -76,6 +120,13 @@ export type Settings = {
   parent_names: string[];
   dispensed_by_required: boolean;
   webhook_url: string | null;
+  default_ai_model: string;
+  ai_enabled: boolean;
+  openrouter_api_key_hint: string | null;
+};
+
+export type SettingsPatch = Partial<Omit<Settings, 'ai_enabled' | 'openrouter_api_key_hint'>> & {
+  openrouter_api_key?: string | null;
 };
 
 export type AuthStatus = { pin_set: boolean };

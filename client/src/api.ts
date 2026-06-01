@@ -1,12 +1,15 @@
 import type {
+  AiModelsResponse,
   AuthStatus,
   AwayPeriod,
+  ExtractResponse,
   Medication,
   Person,
   PrnAssignment,
   Routine,
   ScheduledAssignment,
   Settings,
+  SettingsPatch,
 } from './types';
 import type { DayLog, DayPayload, PrnLog, PrnToday } from './grid/types';
 
@@ -146,7 +149,7 @@ export const api = {
 
   // settings
   getSettings: () => request<Settings>('GET', '/api/settings'),
-  updateSettings: (patch: Partial<Settings>) =>
+  updateSettings: (patch: SettingsPatch) =>
     request<Settings>('PATCH', '/api/settings', patch),
 
   // webhooks
@@ -249,7 +252,7 @@ export const api = {
   // upload
   uploadImage: async (
     file: File,
-    kind: 'person' | 'med-box' | 'med-tablet'
+    kind: 'person' | 'med-box' | 'med-box-back' | 'med-tablet'
   ): Promise<{ url: string }> => {
     const fd = new FormData();
     fd.append('file', file);
@@ -259,4 +262,9 @@ export const api = {
       fd
     );
   },
+
+  // AI extraction
+  listAiModels: () => request<AiModelsResponse>('GET', '/api/ai/models'),
+  extractMedication: (b: { image_urls: string[]; model?: string }) =>
+    request<ExtractResponse>('POST', '/api/medications/extract', b),
 };

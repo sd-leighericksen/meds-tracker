@@ -18,6 +18,7 @@ import { scheduledDoseLogsRoutes } from './routes/scheduledDoseLogs.js';
 import { prnDoseLogsRoutes } from './routes/prnDoseLogs.js';
 import { webhookRoutes } from './routes/webhooks.js';
 import { reportingRoutes } from './routes/reporting.js';
+import { aiExtractRoutes } from './routes/aiExtract.js';
 import { startScheduler } from './scheduler.js';
 import { authRoutes } from './auth.js';
 
@@ -61,6 +62,7 @@ await app.register(scheduledDoseLogsRoutes);
 await app.register(prnDoseLogsRoutes);
 await app.register(webhookRoutes);
 await app.register(reportingRoutes);
+await app.register(aiExtractRoutes);
 
 // Serve uploaded images under /uploads/*.
 const uploadsRoot = getUploadsRoot();

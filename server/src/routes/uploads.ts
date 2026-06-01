@@ -13,7 +13,7 @@ const ALLOWED_MIME = new Set([
 ]);
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
-const ALLOWED_KIND = new Set(['person', 'med-box', 'med-tablet']);
+const ALLOWED_KIND = new Set(['person', 'med-box', 'med-box-back', 'med-tablet']);
 
 export function getUploadsRoot(): string {
   const root =
