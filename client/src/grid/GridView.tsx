@@ -385,7 +385,7 @@ function HeaderCell({ col, onOpen }: { col: DayColumn; onOpen: () => void }) {
       className="flex flex-col items-start gap-1 rounded-xl bg-surface-soft p-3 text-left active:bg-surface"
     >
       <div className="text-caption text-stone">{col.due_time}</div>
-      <div className="text-h5 text-ink leading-tight">{col.med_proper_name}</div>
+      <div className="text-h5 text-ink leading-tight">{col.med_nickname ?? col.med_proper_name}</div>
       <div className="text-caption text-slate">
         {col.med_dose}
         {col.med_dose_size ? ` · ${col.med_dose_size}` : ''}
