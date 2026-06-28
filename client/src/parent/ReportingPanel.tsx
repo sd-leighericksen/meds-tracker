@@ -8,6 +8,11 @@ import {
 } from '../api';
 import { btn, EmptyHint, ErrorBanner, Input } from '../ui';
 
+function useResetKey() {
+  const [key, setKey] = useState(0);
+  return { key, bump: () => setKey((k) => k + 1) };
+}
+
 type Tab = 'adherence' | 'day' | 'prn';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'adherence', label: 'Adherence' },
@@ -17,14 +22,43 @@ const TABS: { key: Tab; label: string }[] = [
 
 export function ReportingPanel() {
   const [tab, setTab] = useState<Tab>('adherence');
+  const [resetting, setResetting] = useState(false);
+  const { key, bump } = useResetKey();
+
+  const handleReset = async () => {
+    if (
+      !confirm(
+        'This will permanently delete all dose logs and reporting data. Are you sure?'
+      )
+    )
+      return;
+    setResetting(true);
+    try {
+      await api.resetReporting();
+      bump();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <h2 className="text-h3 text-ink">Reporting</h2>
-        <p className="text-caption text-stone">
-          All numbers come from the immutable daily logs. Editing config never rewrites them.
-        </p>
+        <button
+          className={btn.danger}
+          onClick={handleReset}
+          disabled={resetting}
+        >
+          {resetting ? 'Clearing…' : 'Clear all data'}
+        </button>
       </div>
+      <p className="text-caption text-stone">
+        All numbers come from daily logs. Editing config never rewrites them.
+        "Clear all data" permanently deletes all logs.
+      </p>
       <div className="flex flex-wrap gap-2">
         {TABS.map((t) => {
           const active = t.key === tab;
@@ -44,9 +78,9 @@ export function ReportingPanel() {
           );
         })}
       </div>
-      {tab === 'adherence' && <Adherence />}
-      {tab === 'day' && <DayLog />}
-      {tab === 'prn' && <PrnHistoryView />}
+      {tab === 'adherence' && <Adherence key={key} />}
+      {tab === 'day' && <DayLog key={key} />}
+      {tab === 'prn' && <PrnHistoryView key={key} />}
     </div>
   );
 }

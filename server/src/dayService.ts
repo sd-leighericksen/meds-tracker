@@ -21,7 +21,15 @@ export function ensureDayLogs(date: string) {
         WHERE start_date <= ? AND end_date >= ?`
     )
     .all(date, date);
-  const awaySet = new Set(peopleAway.map((r) => r.person_id));
+  const peopleAwayDirect = db
+    .prepare<[], { person_id: number }>(
+      `SELECT id AS person_id FROM people WHERE is_away = 1`
+    )
+    .all();
+  const awaySet = new Set([
+    ...peopleAway.map((r) => r.person_id),
+    ...peopleAwayDirect.map((r) => r.person_id),
+  ]);
 
   const candidates = db
     .prepare<
@@ -169,5 +177,14 @@ export function getAwayMap(date: string): Map<number, string | null> {
     .all(date, date);
   const m = new Map<number, string | null>();
   for (const r of rows) m.set(r.person_id, r.note);
+  // Also include people with is_away toggled on directly.
+  const direct = db
+    .prepare<[], { id: number; away_note: string | null }>(
+      `SELECT id, away_note FROM people WHERE is_away = 1`
+    )
+    .all();
+  for (const p of direct) {
+    if (!m.has(p.id)) m.set(p.id, p.away_note);
+  }
   return m;
 }

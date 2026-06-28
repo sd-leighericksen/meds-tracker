@@ -158,6 +158,7 @@ export const api = {
   schedulerTick: () => request<{ ok: true }>('POST', '/api/webhooks/tick'),
 
   // reporting
+  resetReporting: () => request<void>('DELETE', '/api/reporting/reset'),
   getSummary: (q: { window: 7 | 30; until?: string }) => {
     const params = new URLSearchParams({ window: String(q.window) });
     if (q.until) params.set('until', q.until);

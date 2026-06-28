@@ -38,7 +38,7 @@ export function PeoplePanel() {
       {rows.length === 0 ? (
         <EmptyHint>No people yet. Add the people in your household.</EmptyHint>
       ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((p) => (
             <PersonCard key={p.id} person={p} onEdit={() => setEditing(p)} onChanged={reload} />
           ))}
@@ -80,7 +80,12 @@ function PersonCard({
     <div className="flex items-center gap-4 rounded-xl border border-hairline-soft bg-canvas p-4 shadow-elev-1">
       <Avatar src={person.image} name={person.name} />
       <div className="flex flex-1 flex-col">
-        <span className="text-h5 text-ink">{person.name}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-h5 text-ink">{person.name}</span>
+          <span className={`rounded-full px-2 py-0.5 text-caption-bold ${person.is_child ? 'bg-brand-rose text-charcoal' : 'bg-surface text-stone'}`}>
+            {person.is_child ? 'Child' : 'Adult'}
+          </span>
+        </div>
         <span className="text-caption text-slate">
           {person.requires_dispense ? 'Dispense + Taken' : 'Taken only'}
         </span>
@@ -127,6 +132,7 @@ function PersonEdit({
   const [requiresDispense, setRequiresDispense] = useState(
     person?.requires_dispense ?? false
   );
+  const [isChild, setIsChild] = useState(person?.is_child ?? false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -151,6 +157,7 @@ function PersonEdit({
         name: name.trim(),
         image,
         requires_dispense: requiresDispense,
+        is_child: isChild,
       };
       if (person) await api.updatePerson(person.id, payload);
       else await api.createPerson(payload);
@@ -213,6 +220,34 @@ function PersonEdit({
             placeholder="e.g. Mia"
             autoFocus
           />
+        </Field>
+        <Field label="Type">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setIsChild(false)}
+              className={
+                'rounded-full border px-4 py-2 text-button-md ' +
+                (!isChild
+                  ? 'bg-primary text-on-primary border-primary'
+                  : 'bg-canvas text-ink border-hairline-strong active:bg-surface')
+              }
+            >
+              Adult
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsChild(true)}
+              className={
+                'rounded-full border px-4 py-2 text-button-md ' +
+                (isChild
+                  ? 'bg-primary text-on-primary border-primary'
+                  : 'bg-canvas text-ink border-hairline-strong active:bg-surface')
+              }
+            >
+              Child
+            </button>
+          </div>
         </Field>
         <Field
           label="Requires dispense"

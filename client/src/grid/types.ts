@@ -32,6 +32,7 @@ export type DayPerson = {
   name: string;
   image: string | null;
   requires_dispense: boolean;
+  is_child: boolean;
   sort_order: number;
   away: boolean;
   away_note: string | null;

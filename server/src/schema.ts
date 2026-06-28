@@ -213,4 +213,13 @@ export const MIGRATIONS: Migration[] = [
         ON medications(prescribed_to_person_id);
     `,
   },
+  {
+    version: 5,
+    sql: /* sql */ `
+      -- Adult/child classification and direct away toggle per person.
+      ALTER TABLE people ADD COLUMN is_child  INTEGER NOT NULL DEFAULT 0 CHECK (is_child  IN (0,1));
+      ALTER TABLE people ADD COLUMN is_away   INTEGER NOT NULL DEFAULT 0 CHECK (is_away   IN (0,1));
+      ALTER TABLE people ADD COLUMN away_note TEXT;
+    `,
+  },
 ];

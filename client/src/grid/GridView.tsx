@@ -18,6 +18,8 @@ function todayLocalISO(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+type PeopleFilter = 'all' | 'adults' | 'children';
+
 export function GridView() {
   const [day, setDay] = useState<DayPayload | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -27,6 +29,7 @@ export function GridView() {
   const [detail, setDetail] = useState<MedDetail | null>(null);
   const [pendingDispense, setPendingDispense] = useState<DayLog | null>(null);
   const [clock, setClock] = useState(() => new Date());
+  const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>('all');
 
   const [offline, setOffline] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -94,6 +97,12 @@ export function GridView() {
     );
   }
 
+  const filteredPeople = day.people.filter((p) => {
+    if (peopleFilter === 'adults') return !p.is_child;
+    if (peopleFilter === 'children') return p.is_child;
+    return true;
+  });
+
   const empty =
     day.people.length === 0 || day.routines.length === 0 ||
     Object.values(day.columns_by_routine).every((c) => c.length === 0);
@@ -120,12 +129,15 @@ export function GridView() {
               setManualPick(false);
               setRoutineId(day.active_routine_id ?? day.routines[0]?.id ?? null);
             }}
+            peopleFilter={peopleFilter}
+            onPeopleFilter={setPeopleFilter}
           />
-          <main className="flex-1 overflow-y-auto px-6 py-5">
+          <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
             <Grid
               day={day}
               clock={clock}
               routineId={routineId}
+              people={filteredPeople}
               onOpenDetail={setDetail}
               onAfterTap={reload}
               onAskDispenseBy={(log) => setPendingDispense(log)}
@@ -180,13 +192,13 @@ function TopBar({
   );
   const hhmm = `${String(clock.getHours()).padStart(2, '0')}:${String(clock.getMinutes()).padStart(2, '0')}`;
   return (
-    <header className="flex h-16 w-full items-center justify-between border-b border-hairline-soft bg-canvas px-6">
+    <header className="flex min-h-14 w-full flex-wrap items-center justify-between gap-2 border-b border-hairline-soft bg-canvas px-4 py-3 sm:px-6">
       <div className="flex items-baseline gap-2">
-        <span className="text-h4 text-brand-yellow">Meds</span>
-        <span className="text-h4 text-ink">Tracker</span>
+        <span className="text-h5 text-brand-yellow sm:text-h4">Meds</span>
+        <span className="text-h5 text-ink sm:text-h4">Tracker</span>
       </div>
-      <div className="flex items-baseline gap-4">
-        <span className="text-h5 text-ink">{human}</span>
+      <div className="flex flex-wrap items-baseline gap-2 sm:gap-4">
+        <span className="hidden text-body-sm text-ink sm:inline sm:text-h5">{human}</span>
         <span className="text-caption text-steel">{hhmm}</span>
         {offline && (
           <span
@@ -198,7 +210,7 @@ function TopBar({
           </span>
         )}
       </div>
-      <Link to="/parent" className={btn.secondary}>
+      <Link to="/parent" className={btn.secondary + ' text-sm px-4 py-2'}>
         Parent area
       </Link>
     </header>
@@ -212,6 +224,8 @@ function RoutinePills({
   onPick,
   manual,
   onResetAuto,
+  peopleFilter,
+  onPeopleFilter,
 }: {
   day: DayPayload;
   clock: Date;
@@ -219,6 +233,8 @@ function RoutinePills({
   onPick: (id: number) => void;
   manual: boolean;
   onResetAuto: () => void;
+  peopleFilter: PeopleFilter;
+  onPeopleFilter: (f: PeopleFilter) => void;
 }) {
   // Routine progress: non-away taken / non-away total across all people.
   const progress = useMemo(() => {
@@ -240,8 +256,12 @@ function RoutinePills({
   }, [day]);
   void clock; // included as a dep so the React tree re-renders on tick
 
+  const hasChildren = day.people.some((p) => p.is_child);
+  const hasAdults = day.people.some((p) => !p.is_child);
+  const showFilter = hasChildren && hasAdults;
+
   return (
-    <div className="flex items-center gap-3 border-b border-hairline-soft bg-surface-soft px-6 py-3">
+    <div className="flex flex-wrap items-center gap-3 border-b border-hairline-soft bg-surface-soft px-4 py-3 sm:px-6">
       <div className="flex flex-wrap gap-2">
         {day.routines.map((r) => {
           const active = r.id === activeId;
@@ -293,6 +313,24 @@ function RoutinePills({
           Auto-pick
         </button>
       )}
+      {showFilter && (
+        <div className="ml-auto flex items-center gap-1.5">
+          {(['all', 'adults', 'children'] as PeopleFilter[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => onPeopleFilter(f)}
+              className={
+                'rounded-full border px-3 py-1.5 text-caption-bold capitalize ' +
+                (f === peopleFilter
+                  ? 'bg-primary text-on-primary border-primary'
+                  : 'bg-canvas text-ink border-hairline-strong active:bg-surface')
+              }
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -320,6 +358,7 @@ function Grid({
   day,
   clock,
   routineId,
+  people,
   onOpenDetail,
   onAfterTap,
   onAskDispenseBy,
@@ -328,6 +367,7 @@ function Grid({
   day: DayPayload;
   clock: Date;
   routineId: number | null;
+  people: DayPerson[];
   onOpenDetail: (m: MedDetail) => void;
   onAfterTap: () => void;
   onAskDispenseBy: (l: DayLog) => void;
@@ -345,10 +385,10 @@ function Grid({
     );
   }
 
-  const colWidth = 'minmax(160px, 1fr)';
+  const colWidth = 'minmax(140px, 1fr)';
   const gridStyle = {
     display: 'grid',
-    gridTemplateColumns: `220px repeat(${cols.length}, ${colWidth})`,
+    gridTemplateColumns: `180px repeat(${cols.length}, ${colWidth})`,
   };
 
   return (
@@ -360,7 +400,7 @@ function Grid({
           <HeaderCell key={c.medication_id} col={c} onOpen={() => onOpenDetail(toDetail(c))} />
         ))}
         {/* body rows */}
-        {day.people.map((p) => (
+        {people.map((p) => (
           <PersonRow
             key={p.id}
             person={p}

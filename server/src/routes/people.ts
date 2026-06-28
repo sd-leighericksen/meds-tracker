@@ -8,16 +8,25 @@ type PersonRow = {
   name: string;
   image: string | null;
   requires_dispense: 0 | 1;
+  is_child: 0 | 1;
+  is_away: 0 | 1;
+  away_note: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
 };
 
-type PersonOut = Omit<PersonRow, 'requires_dispense'> & { requires_dispense: boolean };
+type PersonOut = Omit<PersonRow, 'requires_dispense' | 'is_child' | 'is_away'> & {
+  requires_dispense: boolean;
+  is_child: boolean;
+  is_away: boolean;
+};
 
 const toOut = (r: PersonRow): PersonOut => ({
   ...r,
   requires_dispense: r.requires_dispense === 1,
+  is_child: r.is_child === 1,
+  is_away: r.is_away === 1,
 });
 
 const personBody = {
@@ -27,6 +36,9 @@ const personBody = {
     name: { type: 'string', minLength: 1, maxLength: 80 },
     image: { type: ['string', 'null'], maxLength: 1024 },
     requires_dispense: { type: 'boolean' },
+    is_child: { type: 'boolean' },
+    is_away: { type: 'boolean' },
+    away_note: { type: ['string', 'null'], maxLength: 200 },
     sort_order: { type: 'integer', minimum: 0 },
   },
 } as const;
@@ -58,13 +70,16 @@ export async function peopleRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const b = req.body;
       const stmt = db.prepare(
-        `INSERT INTO people (name, image, requires_dispense, sort_order, updated_at)
-         VALUES (@name, @image, @requires_dispense, @sort_order, @updated_at)`
+        `INSERT INTO people (name, image, requires_dispense, is_child, is_away, away_note, sort_order, updated_at)
+         VALUES (@name, @image, @requires_dispense, @is_child, @is_away, @away_note, @sort_order, @updated_at)`
       );
       const info = stmt.run({
         name: b.name,
         image: b.image ?? null,
         requires_dispense: boolToInt(b.requires_dispense),
+        is_child: boolToInt(b.is_child),
+        is_away: boolToInt(b.is_away),
+        away_note: b.away_note ?? null,
         sort_order: b.sort_order ?? 0,
         updated_at: NOW(),
       });
@@ -94,12 +109,19 @@ export async function peopleRoutes(app: FastifyInstance) {
           b.requires_dispense === undefined
             ? existing.requires_dispense
             : boolToInt(b.requires_dispense),
+        is_child:
+          b.is_child === undefined ? existing.is_child : boolToInt(b.is_child),
+        is_away:
+          b.is_away === undefined ? existing.is_away : boolToInt(b.is_away),
+        away_note:
+          b.away_note === undefined ? existing.away_note : b.away_note,
         sort_order: b.sort_order ?? existing.sort_order,
         updated_at: NOW(),
         id,
       };
       db.prepare(
         `UPDATE people SET name=@name, image=@image, requires_dispense=@requires_dispense,
+                          is_child=@is_child, is_away=@is_away, away_note=@away_note,
                           sort_order=@sort_order, updated_at=@updated_at
          WHERE id=@id`
       ).run(next);

@@ -5,6 +5,9 @@ export type Person = {
   name: string;
   image: string | null;
   requires_dispense: boolean;
+  is_child: boolean;
+  is_away: boolean;
+  away_note: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;

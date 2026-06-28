@@ -52,6 +52,18 @@ function groupQuery(by: GroupBy): string {
 }
 
 export async function reportingRoutes(app: FastifyInstance) {
+  // Delete all dose logs — full reset. Irreversible; requires PIN.
+  app.delete(
+    '/api/reporting/reset',
+    { preHandler: requirePin },
+    async (_req, reply) => {
+      db.prepare('DELETE FROM scheduled_dose_logs').run();
+      db.prepare('DELETE FROM prn_dose_logs').run();
+      db.prepare('DELETE FROM routine_completions').run();
+      reply.code(204).send();
+    }
+  );
+
   // Summary across a rolling N-day window.
   app.get<{ Querystring: { window?: string; until?: string } }>(
     '/api/reporting/summary',

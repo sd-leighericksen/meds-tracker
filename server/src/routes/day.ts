@@ -16,6 +16,7 @@ type Person = {
   name: string;
   image: string | null;
   requires_dispense: 0 | 1;
+  is_child: 0 | 1;
   sort_order: number;
 };
 type Routine = {
@@ -49,7 +50,7 @@ export async function dayRoutes(app: FastifyInstance) {
 
       const people = db
         .prepare<[], Person>(
-          `SELECT id, name, image, requires_dispense, sort_order
+          `SELECT id, name, image, requires_dispense, is_child, sort_order
              FROM people ORDER BY sort_order, id`
         )
         .all();
@@ -119,6 +120,7 @@ export async function dayRoutes(app: FastifyInstance) {
         people: people.map((p) => ({
           ...p,
           requires_dispense: p.requires_dispense === 1,
+          is_child: p.is_child === 1,
           away: awayMap.has(p.id),
           away_note: awayMap.get(p.id) ?? null,
         })),
