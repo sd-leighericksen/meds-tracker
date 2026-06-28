@@ -51,8 +51,8 @@ export function PrnPanel({
 
   return (
     <section>
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-h3 text-ink">As-needed</h2>
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+        <h2 className="text-h4 text-ink sm:text-h3">As-needed</h2>
         <p className="text-caption text-stone">
           Memory aid only — interval warnings never block a dose.
         </p>
@@ -67,7 +67,7 @@ export function PrnPanel({
           No PRN medications configured.
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[...byPerson.entries()].map(([personId, items]) => (
             <PersonPrnCard
               key={personId}

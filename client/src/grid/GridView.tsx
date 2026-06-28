@@ -18,6 +18,21 @@ function todayLocalISO(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// Below Tailwind's `sm` breakpoint (640px) we drop the wide person×med grid for
+// a stacked per-person card layout that fits a phone in portrait.
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return isMobile;
+}
+
 type PeopleFilter = 'all' | 'adults' | 'children';
 
 export function GridView() {
@@ -30,6 +45,7 @@ export function GridView() {
   const [pendingDispense, setPendingDispense] = useState<DayLog | null>(null);
   const [clock, setClock] = useState(() => new Date());
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>('all');
+  const isMobile = useIsMobile();
 
   const [offline, setOffline] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -133,16 +149,29 @@ export function GridView() {
             onPeopleFilter={setPeopleFilter}
           />
           <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-            <Grid
-              day={day}
-              clock={clock}
-              routineId={routineId}
-              people={filteredPeople}
-              onOpenDetail={setDetail}
-              onAfterTap={reload}
-              onAskDispenseBy={(log) => setPendingDispense(log)}
-              settings={settings}
-            />
+            {isMobile ? (
+              <MobileDayList
+                day={day}
+                clock={clock}
+                routineId={routineId}
+                people={filteredPeople}
+                onOpenDetail={setDetail}
+                onAfterTap={reload}
+                onAskDispenseBy={(log) => setPendingDispense(log)}
+                settings={settings}
+              />
+            ) : (
+              <Grid
+                day={day}
+                clock={clock}
+                routineId={routineId}
+                people={filteredPeople}
+                onOpenDetail={setDetail}
+                onAfterTap={reload}
+                onAskDispenseBy={(log) => setPendingDispense(log)}
+                settings={settings}
+              />
+            )}
             <div className="my-8 h-px bg-hairline-soft" />
             <PrnPanel
               settings={settings}
@@ -448,6 +477,212 @@ function toDetail(c: DayColumn): MedDetail {
   };
 }
 
+/* ---------------- mobile: stacked per-person cards ---------------- */
+
+function MobileDayList({
+  day,
+  clock,
+  routineId,
+  people,
+  onOpenDetail,
+  onAfterTap,
+  onAskDispenseBy,
+  settings,
+}: {
+  day: DayPayload;
+  clock: Date;
+  routineId: number | null;
+  people: DayPerson[];
+  onOpenDetail: (m: MedDetail) => void;
+  onAfterTap: () => void;
+  onAskDispenseBy: (l: DayLog) => void;
+  settings: Settings | null;
+}) {
+  if (routineId === null) return null;
+  const cols = day.columns_by_routine[routineId] ?? [];
+  const routine = day.routines.find((r) => r.id === routineId);
+
+  // Only show people who actually have something in this routine — empty rows
+  // are noise on a phone.
+  const shown = people.filter(
+    (p) => Object.keys(day.grid[routineId]?.[p.id] ?? {}).length > 0
+  );
+
+  if (cols.length === 0) {
+    return (
+      <div className="rounded-2xl border border-hairline-soft bg-canvas p-8 text-center text-body-md text-slate">
+        No medications scheduled for <strong>{routine?.name}</strong> today.
+      </div>
+    );
+  }
+
+  if (shown.length === 0) {
+    return (
+      <div className="rounded-2xl border border-hairline-soft bg-canvas p-8 text-center text-body-md text-slate">
+        No one in this view has medications for <strong>{routine?.name}</strong>{' '}
+        today.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {shown.map((p) => (
+        <MobilePersonCard
+          key={p.id}
+          person={p}
+          day={day}
+          clock={clock}
+          routineId={routineId}
+          cols={cols}
+          onOpenDetail={onOpenDetail}
+          onAfterTap={onAfterTap}
+          onAskDispenseBy={onAskDispenseBy}
+          settings={settings}
+        />
+      ))}
+    </div>
+  );
+}
+
+function MobilePersonCard({
+  person,
+  day,
+  clock,
+  routineId,
+  cols,
+  onOpenDetail,
+  onAfterTap,
+  onAskDispenseBy,
+  settings,
+}: {
+  person: DayPerson;
+  day: DayPayload;
+  clock: Date;
+  routineId: number;
+  cols: DayColumn[];
+  onOpenDetail: (m: MedDetail) => void;
+  onAfterTap: () => void;
+  onAskDispenseBy: (l: DayLog) => void;
+  settings: Settings | null;
+}) {
+  const personLogs = day.grid[routineId]?.[person.id] ?? {};
+  const meds = cols.filter((c) => personLogs[c.medication_id]);
+  const promptOnDispense =
+    !!settings?.dispensed_by_required && settings.parent_names.length > 0;
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-hairline-soft bg-canvas p-4 shadow-elev-1">
+      <div className="flex items-center gap-3">
+        <Avatar src={person.image} name={person.name} away={person.away} />
+        <div className="flex flex-col">
+          <div className="text-h5 text-ink">{person.name}</div>
+          <div className="text-caption text-stone">
+            {person.away ? (
+              <span className="text-coral-dark">
+                Away{person.away_note ? ` · ${person.away_note}` : ''}
+              </span>
+            ) : person.requires_dispense ? (
+              'Dispense + Taken'
+            ) : (
+              'Taken only'
+            )}
+          </div>
+        </div>
+      </div>
+      {person.away ? null : (
+        <div className="flex flex-col gap-2">
+          {meds.map((c) => {
+            const log = personLogs[c.medication_id]!;
+            return (
+              <MobileMedRow
+                key={c.medication_id}
+                person={person}
+                col={c}
+                log={log}
+                state={deriveCellState(log, clock)}
+                onOpenDetail={onOpenDetail}
+                onAfterTap={onAfterTap}
+                onAskDispenseBy={onAskDispenseBy}
+                promptOnDispense={promptOnDispense}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileMedRow({
+  person,
+  col,
+  log,
+  state,
+  onOpenDetail,
+  onAfterTap,
+  onAskDispenseBy,
+  promptOnDispense,
+}: {
+  person: DayPerson;
+  col: DayColumn;
+  log: DayLog;
+  state: CellState;
+  onOpenDetail: (m: MedDetail) => void;
+  onAfterTap: () => void;
+  onAskDispenseBy: (l: DayLog) => void;
+  promptOnDispense: boolean;
+}) {
+  const look = STATE_LOOK[state];
+  return (
+    <div className={'flex flex-col gap-2 rounded-xl border p-3 ' + look.container}>
+      <div className="flex items-start justify-between gap-2">
+        <button
+          onClick={() => onOpenDetail(toDetail(col))}
+          className="flex flex-col items-start text-left active:opacity-70"
+        >
+          <div className="text-caption text-stone">{col.due_time}</div>
+          <div className="text-h5 text-ink leading-tight">
+            {col.med_nickname ?? col.med_proper_name}
+          </div>
+          <div className="text-caption text-slate">
+            {col.med_dose}
+            {col.med_dose_size ? ` · ${col.med_dose_size}` : ''}
+          </div>
+        </button>
+        {look.badge && (
+          <span
+            className={
+              'shrink-0 rounded-full px-2 py-0.5 text-caption-bold ' + look.badge.cls
+            }
+          >
+            {look.badge.label}
+          </span>
+        )}
+      </div>
+      <div className="flex items-stretch gap-2">
+        {person.requires_dispense && (
+          <CheckboxButton
+            label="Dispensed"
+            checked={log.dispensed === 1}
+            onTap={() =>
+              toggleDispense(log, promptOnDispense, onAskDispenseBy, onAfterTap)
+            }
+            sub={dispensedSub(log)}
+          />
+        )}
+        <CheckboxButton
+          label="Taken"
+          checked={log.taken === 1}
+          onTap={() => toggleTaken(log, onAfterTap)}
+          sub={takenSub(log, state)}
+          emphasis
+        />
+      </div>
+    </div>
+  );
+}
+
 function PersonRow({
   person,
   cols,
@@ -515,6 +750,51 @@ function Avatar({ src, name, away }: { src: string | null; name: string; away: b
   return <div className="relative opacity-60 grayscale">{inner}</div>;
 }
 
+// Shared tap handlers so the desktop grid cell and the mobile med row drive
+// dispense / take identically.
+async function toggleDispense(
+  log: DayLog,
+  promptOnDispense: boolean,
+  onAskDispenseBy: (l: DayLog) => void,
+  onAfterTap: () => void
+) {
+  if (log.dispensed === 1) await api.undispense(log.id);
+  else if (promptOnDispense) {
+    await api.dispense(log.id, null);
+    onAskDispenseBy({
+      ...log,
+      dispensed: 1,
+      dispensed_at: new Date().toISOString(),
+    });
+  } else {
+    await api.dispense(log.id, null);
+  }
+  onAfterTap();
+}
+
+async function toggleTaken(log: DayLog, onAfterTap: () => void) {
+  if (log.taken === 1) await api.untake(log.id);
+  else await api.take(log.id);
+  onAfterTap();
+}
+
+function takenSub(log: DayLog, state: CellState): string | null {
+  if (log.taken === 1 && log.taken_at)
+    return new Date(log.taken_at).toLocaleTimeString('en-AU', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  if (state === 'overdue') return `due ${log.due_time}`;
+  if (state === 'due') return 'due now';
+  return null;
+}
+
+function dispensedSub(log: DayLog): string | null {
+  if (log.dispensed === 1 && log.dispensed_by) return `by ${log.dispensed_by}`;
+  if (log.dispensed === 1) return 'tap to clear';
+  return null;
+}
+
 function Cell({
   person,
   log,
@@ -570,49 +850,17 @@ function Cell({
           <CheckboxButton
             label="Dispensed"
             checked={log.dispensed === 1}
-            onTap={async () => {
-              if (log.dispensed === 1) await api.undispense(log.id);
-              else if (promptOnDispense) {
-                await api.dispense(log.id, null);
-                onAskDispenseBy({
-                  ...log,
-                  dispensed: 1,
-                  dispensed_at: new Date().toISOString(),
-                });
-              } else {
-                await api.dispense(log.id, null);
-              }
-              onAfterTap();
-            }}
-            sub={
-              log.dispensed === 1 && log.dispensed_by
-                ? `by ${log.dispensed_by}`
-                : log.dispensed === 1
-                  ? 'tap to clear'
-                  : null
+            onTap={() =>
+              toggleDispense(log, promptOnDispense, onAskDispenseBy, onAfterTap)
             }
+            sub={dispensedSub(log)}
           />
         )}
         <CheckboxButton
           label="Taken"
           checked={log.taken === 1}
-          onTap={async () => {
-            if (log.taken === 1) await api.untake(log.id);
-            else await api.take(log.id);
-            onAfterTap();
-          }}
-          sub={
-            log.taken === 1 && log.taken_at
-              ? new Date(log.taken_at).toLocaleTimeString('en-AU', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
-              : state === 'overdue'
-                ? `due ${log.due_time}`
-                : state === 'due'
-                  ? `due now`
-                  : null
-          }
+          onTap={() => toggleTaken(log, onAfterTap)}
+          sub={takenSub(log, state)}
           emphasis
         />
       </div>
