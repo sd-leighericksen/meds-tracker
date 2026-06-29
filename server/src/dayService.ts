@@ -129,6 +129,28 @@ export function ensureDayLogs(date: string) {
     }
   });
   tx();
+
+  // Prune untouched pending rows whose source assignment no longer applies to
+  // this day — e.g. the assignment was deleted (directly or via FK cascade) or
+  // its course window no longer covers today. Only rows that have NOT been
+  // dispensed/taken and have no stamped outcome are removed, so real history
+  // (taken / late / missed / away) is never rewritten. This keeps the grid in
+  // sync with the current config for doses nothing has happened to yet.
+  const validIds = new Set(candidates.map((c) => c.assignment_id));
+  const pending = db
+    .prepare<[string], { id: number; assignment_id: number }>(
+      `SELECT id, assignment_id FROM scheduled_dose_logs
+        WHERE date = ? AND dispensed = 0 AND taken = 0 AND outcome IS NULL`
+    )
+    .all(date);
+  const stale = pending.filter((r) => !validIds.has(r.assignment_id));
+  if (stale.length > 0) {
+    const del = db.prepare(`DELETE FROM scheduled_dose_logs WHERE id = ?`);
+    const pruneTx = db.transaction(() => {
+      for (const r of stale) del.run(r.id);
+    });
+    pruneTx();
+  }
 }
 
 export type DayLog = {
