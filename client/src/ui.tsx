@@ -179,3 +179,79 @@ export function EmptyHint({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+/**
+ * Canonical medication title: the household nickname is the primary line, with
+ * the proper (medical) name as a subheading. Falls back to the proper name as
+ * the primary line when there's no nickname. Used everywhere a medication is
+ * named so the app reads consistently.
+ */
+export function MedTitle({
+  nickname,
+  properName,
+  size = 'md',
+  className = '',
+}: {
+  nickname?: string | null;
+  properName: string;
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
+}) {
+  const nick = nickname?.trim() ?? '';
+  const primary = nick || properName;
+  const showSub = nick !== '' && nick !== properName;
+  const primaryCls =
+    size === 'lg' ? 'text-h2' : size === 'sm' ? 'text-body-md' : 'text-h5';
+  const subCls =
+    size === 'lg' ? 'text-body-md text-slate' : 'text-caption text-slate';
+  return (
+    <div className={'flex flex-col leading-tight ' + className}>
+      <span className={primaryCls + ' text-ink leading-tight'}>{primary}</span>
+      {showSub && <span className={subCls}>{properName}</span>}
+    </div>
+  );
+}
+
+/** Full-screen image viewer. Tap the scrim or Close (or press Esc) to dismiss. */
+export function Lightbox({
+  src,
+  alt = '',
+  onClose,
+}: {
+  src: string;
+  alt?: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/80 p-4"
+    >
+      <img
+        src={src}
+        alt={alt}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[92vh] max-w-[92vw] rounded-xl object-contain shadow-elev-4"
+      />
+      <button
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute right-4 top-4 rounded-full bg-canvas/90 px-4 py-2 text-button-md text-ink active:bg-surface"
+      >
+        Close
+      </button>
+    </div>
+  );
+}

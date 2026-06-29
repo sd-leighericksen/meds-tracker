@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import type { Settings } from '../types';
+import { MedTitle } from '../ui';
 import { DispenseByPicker } from './DispenseByPicker';
 import { MedDetailCard, type MedDetail } from './MedDetailCard';
 import type { PrnItem, PrnLog, PrnToday } from './types';
@@ -194,7 +195,11 @@ function PrnRow({
           }
           className="flex-1 text-left active:opacity-70"
         >
-          <div className="text-body-md text-ink">{item.med.proper_name}</div>
+          <MedTitle
+            nickname={item.med.nickname}
+            properName={item.med.proper_name}
+            size="sm"
+          />
           <div className="text-caption text-slate">
             {item.med.dose}
             {item.med.dose_size ? ` · ${item.med.dose_size}` : ''} ·{' '}

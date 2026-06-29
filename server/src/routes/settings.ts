@@ -17,10 +17,13 @@ type SettingsOut = {
   default_ai_model: string;
   ai_enabled: boolean;
   openrouter_api_key_hint: string | null;
+  incoming_webhook_secret: string | null;
 };
 
 // PATCH body has one extra field (openrouter_api_key) that never appears in GET.
-type SettingsPatch = Partial<Omit<SettingsOut, 'ai_enabled' | 'openrouter_api_key_hint'>> & {
+type SettingsPatch = Partial<
+  Omit<SettingsOut, 'ai_enabled' | 'openrouter_api_key_hint'>
+> & {
   openrouter_api_key?: string | null;
 };
 
@@ -42,6 +45,9 @@ const settingsBody = {
     openrouter_api_key: {
       anyOf: [{ type: 'null' }, { type: 'string', maxLength: 400 }],
     },
+    incoming_webhook_secret: {
+      anyOf: [{ type: 'null' }, { type: 'string', maxLength: 200 }],
+    },
   },
 } as const;
 
@@ -60,6 +66,7 @@ function readAll(): SettingsOut {
     default_ai_model: getSetting(KEYS.defaultAiModel) ?? DEFAULT_AI_MODEL,
     ai_enabled: getOpenrouterKey() !== null,
     openrouter_api_key_hint: keyHint(),
+    incoming_webhook_secret: getSetting(KEYS.incomingWebhookSecret) || null,
   };
 }
 
@@ -80,6 +87,8 @@ export async function settingsRoutes(app: FastifyInstance) {
         setSetting(KEYS.defaultAiModel, b.default_ai_model);
       if (b.openrouter_api_key !== undefined)
         setSetting(KEYS.openrouterApiKey, (b.openrouter_api_key ?? '').trim());
+      if (b.incoming_webhook_secret !== undefined)
+        setSetting(KEYS.incomingWebhookSecret, (b.incoming_webhook_secret ?? '').trim());
       return readAll();
     }
   );

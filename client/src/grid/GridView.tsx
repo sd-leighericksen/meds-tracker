@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import type { Settings } from '../types';
-import { btn } from '../ui';
+import { btn, MedTitle } from '../ui';
 import { deriveCellState, STATE_LOOK, type CellState } from './cellState';
 import { DispenseByPicker } from './DispenseByPicker';
 import { MedDetailCard, type MedDetail } from './MedDetailCard';
@@ -454,7 +454,7 @@ function HeaderCell({ col, onOpen }: { col: DayColumn; onOpen: () => void }) {
       className="flex flex-col items-start gap-1 rounded-xl bg-surface-soft p-3 text-left active:bg-surface"
     >
       <div className="text-caption text-stone">{col.due_time}</div>
-      <div className="text-h5 text-ink leading-tight">{col.med_nickname ?? col.med_proper_name}</div>
+      <MedTitle nickname={col.med_nickname} properName={col.med_proper_name} />
       <div className="text-caption text-slate">
         {col.med_dose}
         {col.med_dose_size ? ` · ${col.med_dose_size}` : ''}
@@ -642,9 +642,7 @@ function MobileMedRow({
           className="flex flex-col items-start text-left active:opacity-70"
         >
           <div className="text-caption text-stone">{col.due_time}</div>
-          <div className="text-h5 text-ink leading-tight">
-            {col.med_nickname ?? col.med_proper_name}
-          </div>
+          <MedTitle nickname={col.med_nickname} properName={col.med_proper_name} />
           <div className="text-caption text-slate">
             {col.med_dose}
             {col.med_dose_size ? ` · ${col.med_dose_size}` : ''}

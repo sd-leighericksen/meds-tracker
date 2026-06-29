@@ -1,4 +1,5 @@
 import type { FoodTiming } from '../types';
+import { MedTitle } from '../ui';
 
 export type MedDetail = {
   proper_name: string;
@@ -36,10 +37,15 @@ export function MedDetailCard({ med, onClose }: { med: MedDetail; onClose: () =>
         <header className="flex items-start gap-6 px-8 py-6">
           <div className="flex-1">
             <div className="text-micro-uppercase text-steel">Medication</div>
-            <h2 className="text-h2 text-ink">{med.proper_name}</h2>
-            <div className="mt-1 text-body-md text-slate">
-              {[med.brand_name, med.nickname].filter(Boolean).join(' · ') || '—'}
-            </div>
+            <MedTitle
+              nickname={med.nickname}
+              properName={med.proper_name}
+              size="lg"
+              className="mt-1"
+            />
+            {med.brand_name && (
+              <div className="mt-1 text-body-md text-slate">{med.brand_name}</div>
+            )}
             {med.due_time && (
               <div className="text-caption text-stone mt-1">Due {med.due_time}</div>
             )}

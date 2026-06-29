@@ -126,6 +126,7 @@ export type Settings = {
   default_ai_model: string;
   ai_enabled: boolean;
   openrouter_api_key_hint: string | null;
+  incoming_webhook_secret: string | null;
 };
 
 export type SettingsPatch = Partial<Omit<Settings, 'ai_enabled' | 'openrouter_api_key_hint'>> & {

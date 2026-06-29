@@ -39,6 +39,10 @@ export function SettingsPanel({ onPinChanged }: { onPinChanged: () => void }) {
         url={s.webhook_url}
         onChange={(webhook_url) => save({ webhook_url })}
       />
+      <IncomingWebhookSection
+        secret={s.incoming_webhook_secret}
+        onChange={(incoming_webhook_secret) => save({ incoming_webhook_secret })}
+      />
       <AiSection
         enabled={s.ai_enabled}
         keyHint={s.openrouter_api_key_hint}
@@ -188,6 +192,105 @@ function WebhookSection({
       </div>
       {testStatus && (
         <div className="mt-2 text-caption text-stone">{testStatus}</div>
+      )}
+    </section>
+  );
+}
+
+function IncomingWebhookSection({
+  secret,
+  onChange,
+}: {
+  secret: string | null;
+  onChange: (v: string | null) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const endpoint =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/api/incoming/away`
+      : '/api/incoming/away';
+
+  const generate = () => {
+    const s =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID().replace(/-/g, '')
+        : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    onChange(s);
+  };
+
+  const copyExample = async () => {
+    const example = `curl -X POST ${endpoint} \\
+  -H "content-type: application/json" \\
+  -H "x-webhook-secret: ${secret ?? 'YOUR_SECRET'}" \\
+  -d '{"person": "Mia", "away": true, "note": "With Dad"}'`;
+    try {
+      await navigator.clipboard.writeText(example);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard may be unavailable; ignore */
+    }
+  };
+
+  return (
+    <section className="rounded-3xl border border-hairline-soft bg-canvas p-6">
+      <h3 className="text-h4 text-ink">Incoming webhook — set a person away</h3>
+      <p className="mt-1 text-body-sm text-slate">
+        Let an external automation (e.g. n8n, a geofence, a smart-home trigger) flip a
+        person to <strong>away</strong> or back <strong>home</strong>. Authenticated by
+        the secret below — not the PIN — so it works headlessly.
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <span
+          className={
+            'inline-flex items-center rounded-full px-3 py-1 text-caption-bold ' +
+            (secret ? 'bg-success-bg text-success-accent' : 'bg-surface text-stone')
+          }
+        >
+          {secret ? 'Secret configured' : 'No secret set'}
+        </span>
+        <button className={btn.secondary} onClick={generate}>
+          {secret ? 'Regenerate secret' : 'Generate secret'}
+        </button>
+        {secret && (
+          <button
+            className={btn.ghost}
+            onClick={() => {
+              if (confirm('Clear the incoming webhook secret? This disables the endpoint.'))
+                onChange(null);
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {secret && (
+        <div className="mt-4 flex flex-col gap-3">
+          <Field label="Secret">
+            <Input value={secret} readOnly className="font-mono" />
+          </Field>
+          <div className="rounded-xl border border-hairline-soft bg-surface p-4">
+            <div className="text-micro-uppercase text-steel">Endpoint</div>
+            <code className="break-all text-body-sm text-ink">POST {endpoint}</code>
+            <div className="mt-3 text-micro-uppercase text-steel">Body (JSON)</div>
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words text-caption text-ink">
+{`{
+  "person": "Mia",        // or "person_id": 3
+  "away": true,           // false = back home (default true)
+  "note": "With Dad"      // optional, shown on the grid
+}`}
+            </pre>
+            <p className="mt-2 text-caption text-stone">
+              Send the secret as the <code>x-webhook-secret</code> header, a{' '}
+              <code>?secret=</code> query param, or a <code>secret</code> body field.
+            </p>
+            <button className={btn.ghost + ' mt-2'} onClick={copyExample}>
+              {copied ? 'Copied ✓' : 'Copy curl example'}
+            </button>
+          </div>
+        </div>
       )}
     </section>
   );

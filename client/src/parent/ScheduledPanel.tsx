@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import type { Medication, Person, Routine, ScheduledAssignment } from '../types';
-import { btn, EmptyHint, ErrorBanner, Field, Input, Modal, Select } from '../ui';
+import { btn, EmptyHint, ErrorBanner, Field, Input, MedTitle, Modal, Select } from '../ui';
 
 export function ScheduledPanel() {
   const [people, setPeople] = useState<Person[]>([]);
@@ -189,18 +189,16 @@ function AssignmentRow({
   const isCourse = assignment.start_date || assignment.end_date;
   return (
     <div className="flex items-center gap-3 rounded-md border border-hairline-soft bg-surface-soft p-3">
-      <div className="flex flex-1 flex-col">
-        <span className="text-body-md text-ink">
-          {med?.proper_name ?? `#${assignment.medication_id}`}
-          {assignment.dose_override && (
-            <span className="ml-2 text-caption text-slate">
-              · {assignment.dose_override}
-            </span>
-          )}
-        </span>
+      <div className="flex flex-1 flex-col gap-0.5">
+        {med ? (
+          <MedTitle nickname={med.nickname} properName={med.proper_name} size="sm" />
+        ) : (
+          <span className="text-body-md text-ink">#{assignment.medication_id}</span>
+        )}
         <span className="text-caption text-steel">
           {time}
           {assignment.time_override && ' (override)'}
+          {assignment.dose_override ? ` · ${assignment.dose_override}` : ''}
           {isCourse && ` · course ${assignment.start_date ?? '…'} → ${assignment.end_date ?? '…'}`}
         </span>
       </div>
@@ -349,8 +347,8 @@ function ScheduledEdit({
           >
             {meds.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.proper_name}
-                {m.brand_name ? ` (${m.brand_name})` : ''} · {m.dose}
+                {m.nickname?.trim() || m.proper_name}
+                {m.nickname?.trim() ? ` (${m.proper_name})` : ''} · {m.dose}
               </option>
             ))}
           </Select>

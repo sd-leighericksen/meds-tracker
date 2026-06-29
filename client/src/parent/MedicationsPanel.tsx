@@ -14,6 +14,8 @@ import {
   ErrorBanner,
   Field,
   Input,
+  Lightbox,
+  MedTitle,
   Modal,
   Select,
   Textarea,
@@ -131,6 +133,36 @@ function personName(people: Person[], id: number | null): string {
   return people.find((p) => p.id === id)?.name ?? `#${id}`;
 }
 
+/**
+ * Rotate an uploaded image 90° clockwise and return it as a new JPEG File.
+ * The image is same-origin (/uploads/*), so the canvas never taints.
+ */
+async function rotateImageFile(url: string): Promise<File> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('Could not load image to rotate.'));
+    im.src = url;
+  });
+  const canvas = document.createElement('canvas');
+  // 90° rotation swaps width and height.
+  canvas.width = img.naturalHeight;
+  canvas.height = img.naturalWidth;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas not available.');
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error('Rotation failed.'))),
+      'image/jpeg',
+      0.92
+    )
+  );
+  return new File([blob], 'rotated.jpg', { type: 'image/jpeg' });
+}
+
 function MedicationRow({
   med,
   people,
@@ -154,12 +186,12 @@ function MedicationRow({
   };
   return (
     <div className="flex gap-4 rounded-xl border border-hairline-soft bg-canvas p-4 shadow-elev-1">
-      <Thumb src={med.photo_box} alt={med.proper_name} />
+      <Thumb src={med.photo_box} alt={med.nickname?.trim() || med.proper_name} />
       <div className="flex flex-1 flex-col gap-1">
-        <span className="text-h5 text-ink">{med.proper_name}</span>
-        <span className="text-caption text-slate">
-          {[med.brand_name, med.nickname].filter(Boolean).join(' · ') || '—'}
-        </span>
+        <MedTitle nickname={med.nickname} properName={med.proper_name} />
+        {med.brand_name && (
+          <span className="text-caption text-stone">{med.brand_name}</span>
+        )}
         <span className="text-caption text-steel">
           {med.dose}
           {med.dose_size ? ` · ${med.dose_size}` : ''} · {FOOD_LABEL[med.food_timing]}
@@ -187,11 +219,25 @@ function MedicationRow({
 }
 
 function Thumb({ src, alt }: { src: string | null; alt: string }) {
-  if (src) return <img src={src} alt={alt} className="h-16 w-16 rounded-md object-cover" />;
+  const [open, setOpen] = useState(false);
+  if (!src)
+    return (
+      <div className="flex h-16 w-16 items-center justify-center rounded-md bg-surface text-stone">
+        —
+      </div>
+    );
   return (
-    <div className="flex h-16 w-16 items-center justify-center rounded-md bg-surface text-stone">
-      —
-    </div>
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="h-16 w-16 shrink-0 overflow-hidden rounded-md active:opacity-70"
+        aria-label={`View ${alt} photo`}
+      >
+        <img src={src} alt={alt} className="h-full w-full object-cover" />
+      </button>
+      {open && <Lightbox src={src} alt={alt} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -495,6 +541,22 @@ function MedicationEdit({
     }
   };
 
+  const rotate = async (
+    kind: 'med-box' | 'med-box-back' | 'med-tablet',
+    current: string | null
+  ) => {
+    if (!current) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const file = await rotateImageFile(current);
+      await uploadTo(file, kind);
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  };
+
   const save = async () => {
     setError(null);
     setBusy(true);
@@ -739,19 +801,25 @@ function MedicationEdit({
           <PhotoField
             label="Box / front"
             url={photoBox}
+            busy={busy}
             onPick={(f) => uploadTo(f, 'med-box')}
+            onRotate={() => rotate('med-box', photoBox)}
             onClear={() => setPhotoBox(null)}
           />
           <PhotoField
             label="Box / back"
             url={photoBoxBack}
+            busy={busy}
             onPick={(f) => uploadTo(f, 'med-box-back')}
+            onRotate={() => rotate('med-box-back', photoBoxBack)}
             onClear={() => setPhotoBoxBack(null)}
           />
           <PhotoField
             label="Tablet"
             url={photoTablet}
+            busy={busy}
             onPick={(f) => uploadTo(f, 'med-tablet')}
+            onRotate={() => rotate('med-tablet', photoTablet)}
             onClear={() => setPhotoTablet(null)}
           />
         </div>
@@ -763,19 +831,31 @@ function MedicationEdit({
 function PhotoField({
   label,
   url,
+  busy,
   onPick,
+  onRotate,
   onClear,
 }: {
   label: string;
   url: string | null;
+  busy?: boolean;
   onPick: (f: File) => void;
+  onRotate?: () => void;
   onClear: () => void;
 }) {
+  const [zoom, setZoom] = useState(false);
   return (
     <Field label={label}>
       <div className="flex items-center gap-3">
         {url ? (
-          <img src={url} alt={label} className="h-20 w-20 rounded-md object-cover" />
+          <button
+            type="button"
+            onClick={() => setZoom(true)}
+            className="h-20 w-20 shrink-0 overflow-hidden rounded-md active:opacity-70"
+            aria-label={`View ${label} photo`}
+          >
+            <img src={url} alt={label} className="h-full w-full object-cover" />
+          </button>
         ) : (
           <div className="flex h-20 w-20 items-center justify-center rounded-md bg-surface text-stone">
             —
@@ -794,6 +874,16 @@ function PhotoField({
               }}
             />
           </label>
+          {url && onRotate && (
+            <button
+              className={btn.ghost}
+              onClick={onRotate}
+              type="button"
+              disabled={busy}
+            >
+              ⟳ Rotate
+            </button>
+          )}
           {url && (
             <button className={btn.ghost} onClick={onClear} type="button">
               Clear
@@ -801,6 +891,9 @@ function PhotoField({
           )}
         </div>
       </div>
+      {zoom && url && (
+        <Lightbox src={url} alt={label} onClose={() => setZoom(false)} />
+      )}
     </Field>
   );
 }

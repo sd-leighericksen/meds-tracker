@@ -37,6 +37,7 @@ export const KEYS = {
   webhookUrl: 'webhook_url',
   defaultAiModel: 'default_ai_model',
   openrouterApiKey: 'openrouter_api_key',
+  incomingWebhookSecret: 'incoming_webhook_secret',
 } as const;
 
 // Resolved key: DB-stored value takes precedence over OPENROUTER_API_KEY env var.
