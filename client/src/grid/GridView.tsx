@@ -187,6 +187,7 @@ export function GridView() {
                 onAfterTap={reload}
                 onAskDispenseBy={(log) => setPendingDispense(log)}
                 settings={settings}
+                groupBy={groupBy}
               />
             ) : (
               <Grid
@@ -683,6 +684,7 @@ function MobileDayList({
   onAfterTap,
   onAskDispenseBy,
   settings,
+  groupBy,
 }: {
   day: DayPayload;
   clock: Date;
@@ -692,13 +694,13 @@ function MobileDayList({
   onAfterTap: () => void;
   onAskDispenseBy: (l: DayLog) => void;
   settings: Settings | null;
+  groupBy: GroupBy;
 }) {
   if (routineId === null) return null;
   const cols = day.columns_by_routine[routineId] ?? [];
   const routine = day.routines.find((r) => r.id === routineId);
 
-  // Only show people who actually have something in this routine — empty rows
-  // are noise on a phone.
+  // Only show people who actually have something in this routine.
   const shown = people.filter(
     (p) => Object.keys(day.grid[routineId]?.[p.id] ?? {}).length > 0
   );
@@ -720,6 +722,27 @@ function MobileDayList({
     );
   }
 
+  if (groupBy === 'medication') {
+    return (
+      <div className="flex flex-col gap-4">
+        {cols.map((c) => (
+          <MobileMedCard
+            key={c.medication_id}
+            col={c}
+            people={shown}
+            day={day}
+            clock={clock}
+            routineId={routineId}
+            onOpenDetail={onOpenDetail}
+            onAfterTap={onAfterTap}
+            onAskDispenseBy={onAskDispenseBy}
+            settings={settings}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {shown.map((p) => (
@@ -736,6 +759,112 @@ function MobileDayList({
           settings={settings}
         />
       ))}
+    </div>
+  );
+}
+
+function MobileMedCard({
+  col,
+  people,
+  day,
+  clock,
+  routineId,
+  onOpenDetail,
+  onAfterTap,
+  onAskDispenseBy,
+  settings,
+}: {
+  col: DayColumn;
+  people: DayPerson[];
+  day: DayPayload;
+  clock: Date;
+  routineId: number;
+  onOpenDetail: (m: MedDetail) => void;
+  onAfterTap: () => void;
+  onAskDispenseBy: (l: DayLog) => void;
+  settings: Settings | null;
+}) {
+  const promptOnDispense =
+    !!settings?.dispensed_by_required && settings.parent_names.length > 0;
+
+  const peopleWithMed = people.filter(
+    (p) => day.grid[routineId]?.[p.id]?.[col.medication_id]
+  );
+
+  if (peopleWithMed.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-hairline-soft bg-canvas p-4 shadow-elev-1">
+      <button
+        onClick={() => onOpenDetail(toDetail(col))}
+        className="flex items-start justify-between gap-2 text-left active:opacity-70"
+      >
+        <div className="flex flex-col gap-0.5">
+          <MedTitle nickname={col.med_nickname} properName={col.med_proper_name} />
+          <div className="text-caption text-slate">
+            {col.med_dose}
+            {col.med_dose_size ? ` · ${col.med_dose_size}` : ''}
+          </div>
+        </div>
+        <div className="shrink-0 text-caption text-stone">{col.due_time}</div>
+      </button>
+      <div className="flex flex-col gap-2">
+        {peopleWithMed.map((p) => {
+          const log = day.grid[routineId]![p.id]![col.medication_id]!;
+          const state = deriveCellState(log, clock);
+          const look = STATE_LOOK[state];
+          if (state === 'away') {
+            return (
+              <div
+                key={p.id}
+                className="flex items-center gap-3 rounded-xl border border-hairline-soft bg-surface p-3"
+              >
+                <Avatar src={p.image} name={p.name} away={p.away} />
+                <span className="text-body-sm text-coral-dark">
+                  {p.name} · Away{p.away_note ? ` · ${p.away_note}` : ''}
+                </span>
+              </div>
+            );
+          }
+          return (
+            <div key={p.id} className={'flex flex-col gap-2 rounded-xl border p-3 ' + look.container}>
+              <div className="flex items-center gap-2">
+                <Avatar src={p.image} name={p.name} away={p.away} />
+                <span className="text-body-sm text-ink">{p.name}</span>
+                {look.badge && (
+                  <span
+                    className={
+                      'ml-auto shrink-0 rounded-full px-2 py-0.5 text-caption-bold ' +
+                      look.badge.cls
+                    }
+                  >
+                    {look.badge.label}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-stretch gap-2">
+                {p.requires_dispense && (
+                  <CheckboxButton
+                    label="Dispensed"
+                    checked={log.dispensed === 1}
+                    onTap={() =>
+                      toggleDispense(log, promptOnDispense, onAskDispenseBy, onAfterTap)
+                    }
+                    sub={dispensedSub(log)}
+                  />
+                )}
+                <CheckboxButton
+                  label="Taken"
+                  checked={log.taken === 1}
+                  onTap={() => toggleTaken(log, onAfterTap)}
+                  sub={takenSub(log, state)}
+                  emphasis
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
