@@ -34,6 +34,7 @@ function useIsMobile() {
 }
 
 type PeopleFilter = 'all' | 'adults' | 'children';
+type GroupBy = 'person' | 'medication';
 
 export function GridView() {
   const [day, setDay] = useState<DayPayload | null>(null);
@@ -45,6 +46,7 @@ export function GridView() {
   const [pendingDispense, setPendingDispense] = useState<DayLog | null>(null);
   const [clock, setClock] = useState(() => new Date());
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>('all');
+  const [groupBy, setGroupBy] = useState<GroupBy>('person');
   const isMobile = useIsMobile();
 
   const [offline, setOffline] = useState(false);
@@ -147,6 +149,8 @@ export function GridView() {
             }}
             peopleFilter={peopleFilter}
             onPeopleFilter={setPeopleFilter}
+            groupBy={groupBy}
+            onGroupBy={setGroupBy}
           />
           <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
             {isMobile ? (
@@ -170,6 +174,7 @@ export function GridView() {
                 onAfterTap={reload}
                 onAskDispenseBy={(log) => setPendingDispense(log)}
                 settings={settings}
+                groupBy={groupBy}
               />
             )}
             <div className="my-8 h-px bg-hairline-soft" />
@@ -255,6 +260,8 @@ function RoutinePills({
   onResetAuto,
   peopleFilter,
   onPeopleFilter,
+  groupBy,
+  onGroupBy,
 }: {
   day: DayPayload;
   clock: Date;
@@ -264,6 +271,8 @@ function RoutinePills({
   onResetAuto: () => void;
   peopleFilter: PeopleFilter;
   onPeopleFilter: (f: PeopleFilter) => void;
+  groupBy: GroupBy;
+  onGroupBy: (g: GroupBy) => void;
 }) {
   // Routine progress: non-away taken / non-away total across all people.
   const progress = useMemo(() => {
@@ -342,24 +351,42 @@ function RoutinePills({
           Auto-pick
         </button>
       )}
-      {showFilter && (
-        <div className="ml-auto flex items-center gap-1.5">
-          {(['all', 'adults', 'children'] as PeopleFilter[]).map((f) => (
+      <div className="ml-auto flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          {(['person', 'medication'] as GroupBy[]).map((g) => (
             <button
-              key={f}
-              onClick={() => onPeopleFilter(f)}
+              key={g}
+              onClick={() => onGroupBy(g)}
               className={
-                'rounded-full border px-3 py-1.5 text-caption-bold capitalize ' +
-                (f === peopleFilter
+                'rounded-full border px-3 py-1.5 text-caption-bold ' +
+                (g === groupBy
                   ? 'bg-primary text-on-primary border-primary'
                   : 'bg-canvas text-ink border-hairline-strong active:bg-surface')
               }
             >
-              {f}
+              {g === 'person' ? 'By person' : 'By med'}
             </button>
           ))}
         </div>
-      )}
+        {showFilter && (
+          <div className="flex items-center gap-1.5">
+            {(['all', 'adults', 'children'] as PeopleFilter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => onPeopleFilter(f)}
+                className={
+                  'rounded-full border px-3 py-1.5 text-caption-bold capitalize ' +
+                  (f === peopleFilter
+                    ? 'bg-primary text-on-primary border-primary'
+                    : 'bg-canvas text-ink border-hairline-strong active:bg-surface')
+                }
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -392,6 +419,7 @@ function Grid({
   onAfterTap,
   onAskDispenseBy,
   settings,
+  groupBy,
 }: {
   day: DayPayload;
   clock: Date;
@@ -401,10 +429,16 @@ function Grid({
   onAfterTap: () => void;
   onAskDispenseBy: (l: DayLog) => void;
   settings: Settings | null;
+  groupBy: GroupBy;
 }) {
   if (routineId === null) return null;
   const cols = day.columns_by_routine[routineId] ?? [];
   const routine = day.routines.find((r) => r.id === routineId);
+
+  // Only show people who have assignments in this routine.
+  const shownPeople = people.filter(
+    (p) => Object.keys(day.grid[routineId]?.[p.id] ?? {}).length > 0
+  );
 
   if (cols.length === 0) {
     return (
@@ -414,22 +448,55 @@ function Grid({
     );
   }
 
-  const colWidth = 'minmax(140px, 1fr)';
+  const colWidth = 'minmax(220px, 1fr)';
+
+  if (groupBy === 'medication') {
+    const gridStyle = {
+      display: 'grid',
+      gridTemplateColumns: `200px repeat(${shownPeople.length}, ${colWidth})`,
+    };
+    return (
+      <div className="overflow-x-auto pb-2">
+        <div style={gridStyle} className="min-w-fit gap-x-4 gap-y-3">
+          <div className="sticky left-0 z-10 bg-canvas" />
+          {shownPeople.map((p) => (
+            <PersonHeaderCell key={p.id} person={p} />
+          ))}
+          {cols.map((c) => (
+            <MedRow
+              key={c.medication_id}
+              col={c}
+              people={shownPeople}
+              day={day}
+              clock={clock}
+              routineId={routineId}
+              onOpenDetail={onOpenDetail}
+              onAfterTap={onAfterTap}
+              onAskDispenseBy={onAskDispenseBy}
+              settings={settings}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // groupBy === 'person'
   const gridStyle = {
     display: 'grid',
-    gridTemplateColumns: `180px repeat(${cols.length}, ${colWidth})`,
+    gridTemplateColumns: `200px repeat(${cols.length}, ${colWidth})`,
   };
 
   return (
-    <div className="overflow-x-auto">
-      <div style={gridStyle} className="min-w-fit gap-3">
+    <div className="overflow-x-auto pb-2">
+      <div style={gridStyle} className="min-w-fit gap-x-4 gap-y-3">
         {/* header row */}
-        <div className="sticky left-0 bg-canvas" />
+        <div className="sticky left-0 z-10 bg-canvas" />
         {cols.map((c) => (
           <HeaderCell key={c.medication_id} col={c} onOpen={() => onOpenDetail(toDetail(c))} />
         ))}
         {/* body rows */}
-        {people.map((p) => (
+        {shownPeople.map((p) => (
           <PersonRow
             key={p.id}
             person={p}
@@ -460,6 +527,80 @@ function HeaderCell({ col, onOpen }: { col: DayColumn; onOpen: () => void }) {
         {col.med_dose_size ? ` · ${col.med_dose_size}` : ''}
       </div>
     </button>
+  );
+}
+
+function PersonHeaderCell({ person }: { person: DayPerson }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl bg-surface-soft p-3">
+      <Avatar src={person.image} name={person.name} away={person.away} />
+      <div className="flex flex-col">
+        <div className="text-body-sm text-ink">{person.name}</div>
+        <div className="text-caption text-stone">
+          {person.away ? (
+            <span className="text-coral-dark">
+              Away{person.away_note ? ` · ${person.away_note}` : ''}
+            </span>
+          ) : person.requires_dispense ? (
+            'Dispense + Taken'
+          ) : (
+            'Taken only'
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MedRow({
+  col,
+  people,
+  day,
+  clock,
+  routineId,
+  onOpenDetail,
+  onAfterTap,
+  onAskDispenseBy,
+  settings,
+}: {
+  col: DayColumn;
+  people: DayPerson[];
+  day: DayPayload;
+  clock: Date;
+  routineId: number;
+  onOpenDetail: (m: MedDetail) => void;
+  onAfterTap: () => void;
+  onAskDispenseBy: (l: DayLog) => void;
+  settings: Settings | null;
+}) {
+  return (
+    <>
+      <button
+        onClick={() => onOpenDetail(toDetail(col))}
+        className="sticky left-0 flex flex-col items-start gap-1 rounded-xl bg-canvas p-3 text-left active:bg-surface"
+      >
+        <div className="text-caption text-stone">{col.due_time}</div>
+        <MedTitle nickname={col.med_nickname} properName={col.med_proper_name} />
+        <div className="text-caption text-slate">
+          {col.med_dose}
+          {col.med_dose_size ? ` · ${col.med_dose_size}` : ''}
+        </div>
+      </button>
+      {people.map((p) => {
+        const log = day.grid[routineId]?.[p.id]?.[col.medication_id] ?? null;
+        return (
+          <Cell
+            key={p.id}
+            person={p}
+            log={log}
+            state={log ? deriveCellState(log, clock) : null}
+            onAfterTap={onAfterTap}
+            onAskDispenseBy={onAskDispenseBy}
+            promptOnDispense={!!settings?.dispensed_by_required && settings.parent_names.length > 0}
+          />
+        );
+      })}
+    </>
   );
 }
 
