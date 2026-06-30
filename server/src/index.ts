@@ -22,6 +22,7 @@ import { reportingRoutes } from './routes/reporting.js';
 import { aiExtractRoutes } from './routes/aiExtract.js';
 import { startScheduler } from './scheduler.js';
 import { authRoutes } from './auth.js';
+import { sseAddClient, sseRemoveClient, sseBroadcast } from './sse.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -33,6 +34,35 @@ const app = Fastify({ logger: true });
 
 await app.register(fastifyMultipart, {
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+});
+
+// Broadcast a 'change' event to all SSE clients after any successful mutation.
+app.addHook('onResponse', async (req, reply) => {
+  if (
+    req.method !== 'GET' &&
+    req.method !== 'HEAD' &&
+    req.method !== 'OPTIONS' &&
+    reply.statusCode >= 200 &&
+    reply.statusCode < 300 &&
+    (req.raw.url ?? '').startsWith('/api/')
+  ) {
+    sseBroadcast();
+  }
+});
+
+// SSE endpoint — clients subscribe here for real-time push.
+app.get('/api/events', (req, reply) => {
+  const res = reply.raw;
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+  res.write(': connected\n\n');
+
+  sseAddClient(res);
+  req.raw.socket?.once('close', () => sseRemoveClient(res));
+
+  reply.hijack();
 });
 
 app.get('/api/hello', async () => {

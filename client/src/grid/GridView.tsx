@@ -51,8 +51,10 @@ export function GridView() {
 
   const [offline, setOffline] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const reload = useCallback(async () => {
+    setSyncing(true);
     try {
       const d = await api.getDay();
       setDay(d);
@@ -63,6 +65,8 @@ export function GridView() {
     } catch (e) {
       setOffline(true);
       setError((e as Error).message);
+    } finally {
+      setSyncing(false);
     }
   }, [manualPick]);
 
@@ -107,6 +111,26 @@ export function GridView() {
     if (todayLocalISO(clock) !== day.date) void reload();
   }, [clock, day, reload]);
 
+  // Real-time sync: subscribe to SSE and reload on any server-side change.
+  // The reload is debounced so rapid saves (e.g. settings) only fire once.
+  useEffect(() => {
+    const reloadRef = { current: reload };
+    reloadRef.current = reload;
+
+    const es = new EventSource('/api/events');
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+
+    es.addEventListener('change', () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => reloadRef.current(), 300);
+    });
+
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      es.close();
+    };
+  }, [reload]);
+
   if (!day) {
     return (
       <div className="flex h-full items-center justify-center text-body-md text-slate">
@@ -132,7 +156,7 @@ export function GridView() {
 
   return (
     <div className="flex h-screen w-full flex-col bg-canvas">
-      <TopBar date={day.date} clock={clock} offline={offline} lastSync={lastSync} />
+      <TopBar date={day.date} clock={clock} offline={offline} lastSync={lastSync} onRefresh={reload} syncing={syncing} />
       {empty ? (
         <EmptyHero />
       ) : (
@@ -209,11 +233,15 @@ function TopBar({
   clock,
   offline,
   lastSync,
+  onRefresh,
+  syncing,
 }: {
   date: string;
   clock: Date;
   offline: boolean;
   lastSync: Date | null;
+  onRefresh: () => void;
+  syncing: boolean;
 }) {
   const human = useMemo(
     () =>
@@ -244,9 +272,35 @@ function TopBar({
           </span>
         )}
       </div>
-      <Link to="/parent" className={btn.secondary + ' text-sm px-4 py-2'}>
-        Parent area
-      </Link>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onRefresh}
+          disabled={syncing}
+          title="Refresh"
+          className="flex items-center justify-center rounded-full p-2 text-steel hover:bg-surface active:bg-hairline disabled:opacity-40"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={syncing ? 'animate-spin' : ''}
+          >
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+            <path d="M21 3v5h-5" />
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+            <path d="M8 16H3v5" />
+          </svg>
+        </button>
+        <Link to="/parent" className={btn.secondary + ' text-sm px-4 py-2'}>
+          Parent area
+        </Link>
+      </div>
     </header>
   );
 }
